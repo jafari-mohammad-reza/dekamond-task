@@ -1,7 +1,13 @@
+// @title       Dekamond API
+// @version     1.0
+// @description Dekamond task API
+// @host        localhost:8080
+// @BasePath    /
 package main
 
 import (
 	"context"
+	_ "dekamond-task/docs"
 	"dekamond-task/internal/config"
 	"dekamond-task/internal/db"
 	"dekamond-task/internal/server"
@@ -10,7 +16,7 @@ import (
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background()) // hierarchical context handling
+	ctx, cancel := context.WithCancel(context.Background())
 	cfg, err := config.NewConfig()
 	if err != nil {
 		fmt.Printf("failed to load config: %s", err.Error())

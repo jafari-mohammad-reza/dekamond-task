@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type DB struct {
@@ -28,18 +30,15 @@ func NewDB(cfg *config.Config) (*DB, error) {
 }
 func (d *DB) InitTables() error {
 	query := `
-		CREATE DATABASE IF NOT EXISTS dekamond_task;
-		CREATE TABLE IF NOT EXISTS users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			mobile VARCHAR(11) NOT NULL UNIQUE,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		);
-	`
-	if _, err := d.conn.Exec(query); err != nil {
-		return err
-	}
-	return nil
+	CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		mobile VARCHAR(11) NOT NULL UNIQUE,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+	_, err := d.conn.Exec(query)
+	return err
 }
+
 func (db *DB) Close() error {
 	return db.conn.Close()
 }

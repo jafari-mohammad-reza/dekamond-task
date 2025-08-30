@@ -10,7 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
+	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
 const maxFailedAttempts = 3
@@ -45,6 +46,17 @@ func (s *Server) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create user service: %w", err)
 	}
+	// GetUsers godoc
+	// @Summary      Get users
+	// @Description  Get paginated list of users
+	// @Tags         users
+	// @Accept       json
+	// @Produce      json
+	// @Param        page   query     int     false  "Page number"
+	// @Param        limit  query     int     false  "Page size"
+	// @Success      200    {object}  map[string][]*models.User
+	// @Failure      400    {object}  map[string]string
+	// @Router       /users [get]
 	e.GET("/users", func(ctx echo.Context) error {
 		page := getQueryNum(ctx, "page", 1)
 		limit := getQueryNum(ctx, "limit", 10)
@@ -54,6 +66,16 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		return ctx.JSON(200, Resp{"users": users})
 	})
+	// GetUser godoc
+	// @Summary      Get user by mobile
+	// @Description  Get user info by mobile number
+	// @Tags         users
+	// @Accept       json
+	// @Produce      json
+	// @Param        mobile   path      string  true  "Mobile number"
+	// @Success      200      {object}  map[string]*models.User
+	// @Failure      400      {object}  map[string]string
+	// @Router       /users/{mobile} [get]
 	e.GET("/users/:mobile", func(ctx echo.Context) error {
 		mobile := ctx.Param("mobile")
 		user, err := userService.GetUser(mobile)
@@ -62,6 +84,16 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		return ctx.JSON(200, Resp{"user": user})
 	})
+	// Register godoc
+	// @Summary      Register user
+	// @Description  Register a user with mobile number
+	// @Tags         auth
+	// @Accept       json
+	// @Produce      json
+	// @Param        body  body      dto.RegisterRequest  true  "Register payload"
+	// @Success      200   {object}  map[string]string
+	// @Failure      400   {object}  map[string]string
+	// @Router       /register [post]
 	e.POST("/register", func(ctx echo.Context) error {
 		var request dto.RegisterRequest
 		if err := ctx.Bind(&request); err != nil {
@@ -82,6 +114,17 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		return ctx.JSON(200, Resp{"message": "User registered successfully"})
 	})
+	// Login godoc
+	// @Summary      Login user
+	// @Description  Login user using mobile + OTP
+	// @Tags         auth
+	// @Accept       json
+	// @Produce      json
+	// @Param        body  body      dto.LoginRequest  true  "Login payload"
+	// @Success      200   {object}  map[string]any
+	// @Failure      400   {object}  map[string]string
+	// @Failure      403   {object}  map[string]string
+	// @Router       /login [post]
 	e.POST("/login", func(ctx echo.Context) error {
 		var request dto.LoginRequest
 		if err := ctx.Bind(&request); err != nil {
@@ -109,6 +152,7 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		return ctx.JSON(200, Resp{"message": "User logged in successfully", "token": token})
 	})
+	e.GET("/swagger/*", echoSwagger.WrapHandler)
 	return e.Start(fmt.Sprintf(":%d", s.cfg.Port))
 }
 func (s *Server) checkOtps(ctx context.Context) {
