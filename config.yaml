@@ -1,0 +1,2 @@
+database:
+  url: "file:db.sqlite3?cache=shared&mode=rwc"
