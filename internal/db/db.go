@@ -1,9 +1,13 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"dekamond-task/internal/config"
+	"dekamond-task/internal/models"
+	"errors"
 	"fmt"
+	"time"
 )
 
 type DB struct {
@@ -38,4 +42,68 @@ func (d *DB) InitTables() error {
 }
 func (db *DB) Close() error {
 	return db.conn.Close()
+}
+
+func (d *DB) CreateUser(ctx context.Context, mobile string) error {
+	res, err := d.conn.ExecContext(ctx, `INSERT INTO users (mobile , created_at) VALUES ($1 , $2)`, mobile, time.Now())
+	if err != nil {
+		return err
+	}
+	inserted, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if inserted <= 0 {
+		return errors.New("nothing affected")
+	}
+	return nil
+}
+
+func (d *DB) GetUser(ctx context.Context, mobile string) (*models.User, error) {
+	rows, err := d.conn.QueryContext(ctx, `SELECT (id , mobile , created_at) FROM users WHERE mobile=$1`, mobile)
+	if err != nil {
+		return nil, err
+	}
+	var user models.User
+	for rows.Next() {
+		if err := rows.Scan(&user.ID, &user.Mobile, &user.CreatedAt); err != nil {
+			return nil, err
+		}
+	}
+	return &user, nil
+}
+func (d *DB) GetUsers(ctx context.Context, page, limit int) ([]*models.User, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+
+	rows, err := d.conn.QueryContext(ctx, `
+		SELECT id, mobile, created_at
+		FROM users
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		var u models.User
+		if err := rows.Scan(&u.ID, &u.Mobile, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, &u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }

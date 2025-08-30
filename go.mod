@@ -3,6 +3,7 @@ module dekamond-task
 go 1.24.6
 
 require (
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/labstack/echo v3.3.10+incompatible
 	github.com/spf13/viper v1.20.1

@@ -14,7 +14,7 @@ type RegisterRequest struct {
 
 type LoginRequest struct {
 	MobileNumber string `json:"email" validate:"required,min=11,max=11"`
-	OTP          string `json:"otp" validate:"required,min=6,max=6"`
+	OTP          int    `json:"otp" validate:"required,min=6,max=6"`
 }
 
 func ValidateModel(model any) error {
