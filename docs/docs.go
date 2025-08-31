@@ -76,52 +76,25 @@ const docTemplate = `{
                 }
             }
         },
-        "/register": {
+        "/auth": {
             "post": {
                 "tags": ["auth"],
-                "summary": "Register user",
-                "description": "Register a user with mobile number",
+                "summary": "Authentication",
+                "description": "Register or login user with mobile number and optional OTP",
                 "produces": ["application/json"],
                 "parameters": [
                     {
                         "name": "body",
                         "in": "body",
-                        "description": "Register payload",
+                        "description": "Auth payload",
                         "required": true,
-                        "schema": { "$ref": "#/definitions/RegisterRequest" }
+                        "schema": { "$ref": "#/definitions/AuthRequest" }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "User registered successfully",
-                        "schema": { "$ref": "#/definitions/RegisterResponse" }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": { "$ref": "#/definitions/MessageResponse" }
-                    }
-                }
-            }
-        },
-        "/login": {
-            "post": {
-                "tags": ["auth"],
-                "summary": "Login user",
-                "description": "Login user using mobile + OTP",
-                "produces": ["application/json"],
-                "parameters": [
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "description": "Login payload",
-                        "required": true,
-                        "schema": { "$ref": "#/definitions/LoginRequest" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "User logged in successfully",
-                        "schema": { "$ref": "#/definitions/LoginResponse" }
+                        "description": "Success",
+                        "schema": { "$ref": "#/definitions/AuthResponse" }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -163,28 +136,15 @@ const docTemplate = `{
                 "message": {"type": "string"}
             }
         },
-        "RegisterRequest": {
-            "type": "object",
-            "properties": {
-                "mobileNumber": {"type": "string","example": "09123456789"}
-            },
-            "required": ["mobileNumber"]
-        },
-        "RegisterResponse": {
-            "type": "object",
-            "properties": {
-                "message": {"type": "string"}
-            }
-        },
-        "LoginRequest": {
+        "AuthRequest": {
             "type": "object",
             "properties": {
                 "mobileNumber": {"type": "string","example": "09123456789"},
-                "OTP": {"type": "integer","example": 123456}
+                "otp": {"type": "integer","example": 123456}
             },
-            "required": ["mobileNumber","OTP"]
+            "required": ["mobileNumber"]
         },
-        "LoginResponse": {
+        "AuthResponse": {
             "type": "object",
             "properties": {
                 "message": {"type": "string"},

@@ -10,13 +10,9 @@ type UserResponse struct {
 	User *models.User `json:"user"`
 }
 
-type RegisterResponse struct {
+type AuthResponse struct {
 	Message string `json:"message"`
-}
-
-type LoginResponse struct {
-	Message string `json:"message"`
-	Token   string `json:"token"`
+	Token   string `json:"token,omitempty"`
 }
 type UsersResponse struct {
 	Users []*models.User `json:"users"`

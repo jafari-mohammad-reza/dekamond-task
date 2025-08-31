@@ -14,6 +14,7 @@ type IUserService interface {
 	Login(mobile string) (string, error)
 	GetUser(mobile string) (*models.User, error)
 	GetUsers(page, limit int) ([]*models.User, error)
+	UserExists(mobile string) bool
 }
 
 type UserService struct {
@@ -50,7 +51,7 @@ func (u *UserService) CreateUser(mobile string) error {
 	}
 
 	if user != nil {
-		return errors.New("invalid credentials")
+		return nil
 	}
 
 	if err := u.repo.CreateUser(ctx, mobile); err != nil {
@@ -74,6 +75,11 @@ func (u *UserService) GetUsers(page, limit int) ([]*models.User, error) {
 		return nil, errors.New("failed to get users")
 	}
 	return users, nil
+}
+
+func (u *UserService) UserExists(mobile string) bool {
+	user, err := u.repo.GetUser(context.Background(), mobile)
+	return err == nil && user != nil
 }
 
 func NewUserService(cfg *config.Config) (IUserService, error) {

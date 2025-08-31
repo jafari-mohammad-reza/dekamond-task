@@ -54,8 +54,7 @@ func (s *Server) Start(ctx context.Context) error {
 	s.e = e
 	e.GET("/users", s.getUsers)
 	e.GET("/users/:mobile", s.getByMobile)
-	e.POST("/register", s.register)
-	e.POST("/login", s.login)
+	e.POST("/auth", s.auth)
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 	return e.Start(fmt.Sprintf(":%d", s.cfg.Port))
 }
@@ -79,8 +78,8 @@ func (s *Server) getByMobile(ctx echo.Context) error {
 	return ctx.JSON(200, dto.UserResponse{User: user})
 }
 
-func (s *Server) register(ctx echo.Context) error {
-	var request dto.RegisterRequest
+func (s *Server) auth(ctx echo.Context) error {
+	var request dto.AuthRequest
 	if err := ctx.Bind(&request); err != nil {
 		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
 	}
@@ -88,28 +87,25 @@ func (s *Server) register(ctx echo.Context) error {
 		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
 	}
 
-	if err := s.userService.CreateUser(request.MobileNumber); err != nil {
-		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
-	}
-	otp := rand.Intn(999999)
-	fmt.Printf("mobile number %s otp: %d\n", request.MobileNumber, otp)
-	s.mu.Lock()
-	s.registerOtps[request.MobileNumber] = OtpItem{
-		Otp:       otp,
-		CreatedAt: time.Now(),
-	}
-	s.mu.Unlock()
-	return ctx.JSON(200, dto.RegisterResponse{Message: "User registered successfully"})
-}
+	userExists := s.userService.UserExists(request.MobileNumber)
 
-func (s *Server) login(ctx echo.Context) error {
-	var request dto.LoginRequest
-	if err := ctx.Bind(&request); err != nil {
-		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+	if request.OTP == nil {
+		if !userExists {
+			if err := s.userService.CreateUser(request.MobileNumber); err != nil {
+				return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+			}
+		}
+		otp := rand.Intn(999999)
+		fmt.Printf("mobile number %s otp: %d\n", request.MobileNumber, otp)
+		s.mu.Lock()
+		s.registerOtps[request.MobileNumber] = OtpItem{
+			Otp:       otp,
+			CreatedAt: time.Now(),
+		}
+		s.mu.Unlock()
+		return ctx.JSON(200, dto.AuthResponse{Message: "OTP sent successfully"})
 	}
-	if err := dto.ValidateModel(&request); err != nil {
-		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
-	}
+
 	if failed, ok := s.failedAttempts[request.MobileNumber]; ok {
 		if failed >= maxFailedAttempts {
 			return ctx.JSON(403, dto.MessageResponse{Message: "Too many failed attempts"})
@@ -119,17 +115,18 @@ func (s *Server) login(ctx echo.Context) error {
 	if !ok {
 		return ctx.JSON(403, dto.MessageResponse{Message: "Invalid input"})
 	}
-	if otp.Otp != request.OTP {
+	if otp.Otp != *request.OTP {
 		s.mu.Lock()
 		s.failedAttempts[request.MobileNumber]++
 		s.mu.Unlock()
 		return ctx.JSON(403, dto.MessageResponse{Message: "Invalid input"})
 	}
+	delete(s.registerOtps, request.MobileNumber)
 	token, err := s.userService.Login(request.MobileNumber)
 	if err != nil {
 		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
 	}
-	return ctx.JSON(200, dto.LoginResponse{
+	return ctx.JSON(200, dto.AuthResponse{
 		Message: "User logged in successfully",
 		Token:   token,
 	})

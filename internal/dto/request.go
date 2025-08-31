@@ -8,13 +8,9 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-type RegisterRequest struct {
+type AuthRequest struct {
 	MobileNumber string `json:"mobileNumber" validate:"required,min=11,max=11"`
-}
-
-type LoginRequest struct {
-	MobileNumber string `json:"mobileNumber" validate:"required,min=11,max=11"`
-	OTP          int    `json:"otp" validate:"required,min=6"`
+	OTP          *int   `json:"otp,omitempty"`
 }
 
 func ValidateModel(model any) error {

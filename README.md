@@ -4,8 +4,7 @@ A simple user registration and authentication API using Go, Echo, and SQLite.
 
 ## How it works
 
-- POST /register - Register with mobile number, receive OTP in console
-- POST /login - Login with mobile number and OTP to get JWT token
+- POST /auth - Send mobile number to get OTP, or send mobile number + OTP to login
 - GET /users - Get paginated list of users
 - GET /users/{mobile} - Get user by mobile number
 
