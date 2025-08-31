@@ -22,8 +22,8 @@ func NewTokenService(cfg *config.Config) *TokenService {
 
 func (t *TokenService) GenerateToken(payload map[string]any) (string, error) {
 	claims := jwt.MapClaims(payload)
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
-	tk, err := token.SignedString(t.cfg.Token.Secret)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tk, err := token.SignedString([]byte(t.cfg.Token.Secret))
 	if err != nil {
 		return "", err
 	}

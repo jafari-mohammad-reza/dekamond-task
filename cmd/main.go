@@ -1,8 +1,3 @@
-// @title       Dekamond API
-// @version     1.0
-// @description Dekamond task API
-// @host        localhost:8080
-// @BasePath    /
 package main
 
 import (
@@ -31,7 +26,11 @@ func main() {
 		fmt.Printf("failed to create tables: %s", err.Error())
 		os.Exit(1)
 	}
-	server := server.NewServer(cfg)
+	server, err := server.NewServer(cfg)
+	if err != nil {
+		fmt.Printf("failed to create server: %s", err.Error())
+		os.Exit(1)
+	}
 	err = server.Start(ctx)
 	if err != nil {
 		fmt.Printf("failed to start server: %s", err.Error())

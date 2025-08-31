@@ -9,12 +9,12 @@ import (
 )
 
 type RegisterRequest struct {
-	MobileNumber string `json:"email" validate:"required,min=11,max=11"`
+	MobileNumber string `json:"mobileNumber" validate:"required,min=11,max=11"`
 }
 
 type LoginRequest struct {
-	MobileNumber string `json:"email" validate:"required,min=11,max=11"`
-	OTP          int    `json:"otp" validate:"required,min=6,max=6"`
+	MobileNumber string `json:"mobileNumber" validate:"required,min=11,max=11"`
+	OTP          int    `json:"otp" validate:"required,min=6"`
 }
 
 func ValidateModel(model any) error {

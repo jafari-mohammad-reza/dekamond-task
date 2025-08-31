@@ -13,7 +13,7 @@ type IUserService interface {
 	CreateUser(mobile string) error
 	Login(mobile string) (string, error)
 	GetUser(mobile string) (*models.User, error)
-	GetUsers(page , limit int) ([]*models.User, error)
+	GetUsers(page, limit int) ([]*models.User, error)
 }
 
 type UserService struct {
@@ -27,7 +27,7 @@ func (u *UserService) Login(mobile string) (string, error) {
 	defer cancel()
 	user, err := u.repo.GetUser(ctx, mobile)
 	if err != nil {
-		return "", err
+		return "", errors.New("invalid credentials")
 	}
 	if user == nil {
 		return "", errors.New("invalid credentials")
@@ -36,31 +36,34 @@ func (u *UserService) Login(mobile string) (string, error) {
 		"mobile": mobile,
 	})
 	if err != nil {
-		return "", err
+		return "", errors.New("failed to generate token")
 	}
 	return token, nil
 }
 
 func (u *UserService) CreateUser(mobile string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	ctx := context.Background()
+
 	user, err := u.repo.GetUser(ctx, mobile)
-	if err != nil {
-		return err
+	if err != nil && err.Error() != "user not found" {
+		return errors.New("failed to check existing user")
 	}
+
 	if user != nil {
 		return errors.New("invalid credentials")
 	}
-	if err := u.CreateUser(mobile); err != nil {
-		return err
+
+	if err := u.repo.CreateUser(ctx, mobile); err != nil {
+		return errors.New("failed to create user")
 	}
+
 	return nil
 }
 
 func (u *UserService) GetUser(mobile string) (*models.User, error) {
 	user, err := u.repo.GetUser(context.Background(), mobile)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to get user")
 	}
 	return user, nil
 }
@@ -68,7 +71,7 @@ func (u *UserService) GetUser(mobile string) (*models.User, error) {
 func (u *UserService) GetUsers(page, limit int) ([]*models.User, error) {
 	users, err := u.repo.GetUsers(context.Background(), page, limit)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to get users")
 	}
 	return users, nil
 }
@@ -76,7 +79,7 @@ func (u *UserService) GetUsers(page, limit int) ([]*models.User, error) {
 func NewUserService(cfg *config.Config) (IUserService, error) {
 	repo, err := db.NewDB(cfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to create db connection")
 	}
 	return &UserService{
 		cfg:          cfg,

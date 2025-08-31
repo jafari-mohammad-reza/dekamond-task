@@ -59,15 +59,15 @@ func (d *DB) CreateUser(ctx context.Context, mobile string) error {
 }
 
 func (d *DB) GetUser(ctx context.Context, mobile string) (*models.User, error) {
-	rows, err := d.conn.QueryContext(ctx, `SELECT (id , mobile , created_at) FROM users WHERE mobile=$1`, mobile)
-	if err != nil {
-		return nil, err
-	}
+	row := d.conn.QueryRowContext(ctx, `SELECT id, mobile, created_at FROM users WHERE mobile=$1`, mobile)
+
 	var user models.User
-	for rows.Next() {
-		if err := rows.Scan(&user.ID, &user.Mobile, &user.CreatedAt); err != nil {
-			return nil, err
+	err := row.Scan(&user.ID, &user.Mobile, &user.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
 		}
+		return nil, err
 	}
 	return &user, nil
 }
@@ -81,11 +81,11 @@ func (d *DB) GetUsers(ctx context.Context, page, limit int) ([]*models.User, err
 	offset := (page - 1) * limit
 
 	rows, err := d.conn.QueryContext(ctx, `
-		SELECT id, mobile, created_at
-		FROM users
-		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`, limit, offset)
+	SELECT id, mobile, created_at
+	FROM users
+	ORDER BY created_at DESC
+	LIMIT $1 OFFSET $2
+`, limit, offset)
 	if err != nil {
 		return nil, err
 	}

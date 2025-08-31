@@ -1,7 +1,13 @@
+// @title       Dekamond API
+// @version     1.0
+// @description Dekamond task API
+// @host        localhost:8080
+// @BasePath    /
 package server
 
 import (
 	"context"
+	_ "dekamond-task/docs"
 	"dekamond-task/internal/config"
 	"dekamond-task/internal/dto"
 	"dekamond-task/internal/service"
@@ -21,14 +27,20 @@ type Server struct {
 	e              *echo.Echo
 	failedAttempts map[string]int
 	registerOtps   map[string]OtpItem
+	userService    service.IUserService
 }
 
-func NewServer(cfg *config.Config) *Server {
+func NewServer(cfg *config.Config) (*Server, error) {
+	userService, err := service.NewUserService(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user service: %w", err)
+	}
 	return &Server{
 		cfg:            cfg,
 		failedAttempts: make(map[string]int),
 		registerOtps:   make(map[string]OtpItem),
-	}
+		userService:    userService,
+	}, nil
 }
 
 type Resp map[string]any
@@ -42,119 +54,85 @@ func (s *Server) Start(ctx context.Context) error {
 	go s.checkOtps(ctx)
 	e := echo.New()
 	s.e = e
-	userService, err := service.NewUserService(s.cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create user service: %w", err)
-	}
-	// GetUsers godoc
-	// @Summary      Get users
-	// @Description  Get paginated list of users
-	// @Tags         users
-	// @Accept       json
-	// @Produce      json
-	// @Param        page   query     int     false  "Page number"
-	// @Param        limit  query     int     false  "Page size"
-	// @Success      200    {object}  map[string][]*models.User
-	// @Failure      400    {object}  map[string]string
-	// @Router       /users [get]
-	e.GET("/users", func(ctx echo.Context) error {
-		page := getQueryNum(ctx, "page", 1)
-		limit := getQueryNum(ctx, "limit", 10)
-		users, err := userService.GetUsers(page, limit)
-		if err != nil {
-			return ctx.JSON(400, Resp{"message": err.Error()})
-		}
-		return ctx.JSON(200, Resp{"users": users})
-	})
-	// GetUser godoc
-	// @Summary      Get user by mobile
-	// @Description  Get user info by mobile number
-	// @Tags         users
-	// @Accept       json
-	// @Produce      json
-	// @Param        mobile   path      string  true  "Mobile number"
-	// @Success      200      {object}  map[string]*models.User
-	// @Failure      400      {object}  map[string]string
-	// @Router       /users/{mobile} [get]
-	e.GET("/users/:mobile", func(ctx echo.Context) error {
-		mobile := ctx.Param("mobile")
-		user, err := userService.GetUser(mobile)
-		if err != nil {
-			return ctx.JSON(400, Resp{"message": err.Error()})
-		}
-		return ctx.JSON(200, Resp{"user": user})
-	})
-	// Register godoc
-	// @Summary      Register user
-	// @Description  Register a user with mobile number
-	// @Tags         auth
-	// @Accept       json
-	// @Produce      json
-	// @Param        body  body      dto.RegisterRequest  true  "Register payload"
-	// @Success      200   {object}  map[string]string
-	// @Failure      400   {object}  map[string]string
-	// @Router       /register [post]
-	e.POST("/register", func(ctx echo.Context) error {
-		var request dto.RegisterRequest
-		if err := ctx.Bind(&request); err != nil {
-			return ctx.JSON(400, Resp{"message": err.Error()})
-		}
-		if err := dto.ValidateModel(&request); err != nil {
-			return ctx.JSON(400, Resp{"message": err.Error()})
-		}
-
-		if err := userService.CreateUser(request.MobileNumber); err != nil {
-			return ctx.JSON(400, Resp{"message": err.Error()})
-		}
-		otp := rand.Intn(999999)
-		fmt.Printf("mobile numner %s otp: %d\n", request.MobileNumber, otp)
-		s.registerOtps[request.MobileNumber] = OtpItem{
-			Otp:       otp,
-			CreatedAt: time.Now(),
-		}
-		return ctx.JSON(200, Resp{"message": "User registered successfully"})
-	})
-	// Login godoc
-	// @Summary      Login user
-	// @Description  Login user using mobile + OTP
-	// @Tags         auth
-	// @Accept       json
-	// @Produce      json
-	// @Param        body  body      dto.LoginRequest  true  "Login payload"
-	// @Success      200   {object}  map[string]any
-	// @Failure      400   {object}  map[string]string
-	// @Failure      403   {object}  map[string]string
-	// @Router       /login [post]
-	e.POST("/login", func(ctx echo.Context) error {
-		var request dto.LoginRequest
-		if err := ctx.Bind(&request); err != nil {
-			return ctx.JSON(400, Resp{"message": err.Error()})
-		}
-		if err := dto.ValidateModel(&request); err != nil {
-			return ctx.JSON(400, Resp{"message": err.Error()})
-		}
-		if failed, ok := s.failedAttempts[request.MobileNumber]; ok {
-			if failed >= maxFailedAttempts {
-				return ctx.JSON(403, Resp{"message": "Too many failed attempts"})
-			}
-		}
-		otp, ok := s.registerOtps[request.MobileNumber]
-		if !ok {
-			return ctx.JSON(403, Resp{"message": "Invalid input"})
-		}
-		if otp.Otp != request.OTP {
-			s.failedAttempts[request.MobileNumber]++
-			return ctx.JSON(403, Resp{"message": "Invalid input"})
-		}
-		token, err := userService.Login(request.MobileNumber)
-		if err != nil {
-			return ctx.JSON(400, Resp{"message": err.Error()})
-		}
-		return ctx.JSON(200, Resp{"message": "User logged in successfully", "token": token})
-	})
+	e.GET("/users", s.getUsers)
+	e.GET("/users/:mobile", s.getByMobile)
+	e.POST("/register", s.register)
+	e.POST("/login", s.login)
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 	return e.Start(fmt.Sprintf(":%d", s.cfg.Port))
 }
+
+func (s *Server) getUsers(ctx echo.Context) error {
+	page := getQueryNum(ctx, "page", 1)
+	limit := getQueryNum(ctx, "limit", 10)
+	users, err := s.userService.GetUsers(page, limit)
+	if err != nil {
+		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+	}
+	return ctx.JSON(200, dto.UsersResponse{Users: users})
+}
+
+func (s *Server) getByMobile(ctx echo.Context) error {
+	mobile := ctx.Param("mobile")
+	user, err := s.userService.GetUser(mobile)
+	if err != nil {
+		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+	}
+	return ctx.JSON(200, dto.UserResponse{User: user})
+}
+
+func (s *Server) register(ctx echo.Context) error {
+	var request dto.RegisterRequest
+	if err := ctx.Bind(&request); err != nil {
+		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+	}
+	if err := dto.ValidateModel(&request); err != nil {
+		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+	}
+
+	if err := s.userService.CreateUser(request.MobileNumber); err != nil {
+		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+	}
+	otp := rand.Intn(999999)
+	fmt.Printf("mobile number %s otp: %d\n", request.MobileNumber, otp)
+	s.registerOtps[request.MobileNumber] = OtpItem{
+		Otp:       otp,
+		CreatedAt: time.Now(),
+	}
+	return ctx.JSON(200, dto.RegisterResponse{Message: "User registered successfully"})
+}
+
+func (s *Server) login(ctx echo.Context) error {
+	var request dto.LoginRequest
+	if err := ctx.Bind(&request); err != nil {
+		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+	}
+	if err := dto.ValidateModel(&request); err != nil {
+		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+	}
+	if failed, ok := s.failedAttempts[request.MobileNumber]; ok {
+		if failed >= maxFailedAttempts {
+			return ctx.JSON(403, dto.MessageResponse{Message: "Too many failed attempts"})
+		}
+	}
+	otp, ok := s.registerOtps[request.MobileNumber]
+	if !ok {
+		return ctx.JSON(403, dto.MessageResponse{Message: "Invalid input"})
+	}
+	if otp.Otp != request.OTP {
+		s.failedAttempts[request.MobileNumber]++
+		return ctx.JSON(403, dto.MessageResponse{Message: "Invalid input"})
+	}
+	token, err := s.userService.Login(request.MobileNumber)
+	if err != nil {
+		return ctx.JSON(400, dto.MessageResponse{Message: err.Error()})
+	}
+	return ctx.JSON(200, dto.LoginResponse{
+		Message: "User logged in successfully",
+		Token:   token,
+	})
+}
+
 func (s *Server) checkOtps(ctx context.Context) {
 	ticker := time.NewTicker(time.Second * 30)
 	defer ticker.Stop()
@@ -162,14 +140,12 @@ func (s *Server) checkOtps(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			fmt.Println("main context cancelled")
-			break
 		case <-ticker.C:
 			for key, val := range s.registerOtps {
 				if time.Since(val.CreatedAt) > 3*time.Minute {
 					delete(s.registerOtps, key)
 				}
 			}
-		default:
 		}
 	}
 }
