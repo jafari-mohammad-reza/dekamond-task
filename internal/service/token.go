@@ -55,7 +55,7 @@ func (t *TokenService) Verify(tk string) (bool, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid token")
 		}
-		return t.cfg.Token.Secret, nil
+		return []byte(t.cfg.Token.Secret), nil
 	})
 	if err != nil {
 		return false, err

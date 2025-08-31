@@ -18,7 +18,7 @@ type IUserService interface {
 
 type UserService struct {
 	cfg          *config.Config
-	repo         *db.DB
+	repo         db.Repo
 	tokenService *TokenService
 }
 

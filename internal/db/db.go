@@ -12,12 +12,19 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type Repo interface {
+	CreateUser(ctx context.Context, mobile string) error
+	GetUser(ctx context.Context, mobile string) (*models.User, error)
+	GetUsers(ctx context.Context, page, limit int) ([]*models.User, error)
+	InitTables() error
+	Close() error
+}
 type DB struct {
 	cfg  *config.Config
 	conn *sql.DB
 }
 
-func NewDB(cfg *config.Config) (*DB, error) {
+func NewDB(cfg *config.Config) (Repo, error) {
 	conn, err := sql.Open("sqlite3", cfg.Database.Url)
 	if err != nil {
 		return nil, err

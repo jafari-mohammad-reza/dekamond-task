@@ -1,8 +1,3 @@
-// @title       Dekamond API
-// @version     1.0
-// @description Dekamond task API
-// @host        localhost:8080
-// @BasePath    /
 package server
 
 import (
@@ -14,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -28,6 +24,7 @@ type Server struct {
 	failedAttempts map[string]int
 	registerOtps   map[string]OtpItem
 	userService    service.IUserService
+	mu             sync.Mutex
 }
 
 func NewServer(cfg *config.Config) (*Server, error) {
@@ -40,6 +37,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		failedAttempts: make(map[string]int),
 		registerOtps:   make(map[string]OtpItem),
 		userService:    userService,
+		mu:             sync.Mutex{},
 	}, nil
 }
 
@@ -95,10 +93,12 @@ func (s *Server) register(ctx echo.Context) error {
 	}
 	otp := rand.Intn(999999)
 	fmt.Printf("mobile number %s otp: %d\n", request.MobileNumber, otp)
+	s.mu.Lock()
 	s.registerOtps[request.MobileNumber] = OtpItem{
 		Otp:       otp,
 		CreatedAt: time.Now(),
 	}
+	s.mu.Unlock()
 	return ctx.JSON(200, dto.RegisterResponse{Message: "User registered successfully"})
 }
 
@@ -120,7 +120,9 @@ func (s *Server) login(ctx echo.Context) error {
 		return ctx.JSON(403, dto.MessageResponse{Message: "Invalid input"})
 	}
 	if otp.Otp != request.OTP {
+		s.mu.Lock()
 		s.failedAttempts[request.MobileNumber]++
+		s.mu.Unlock()
 		return ctx.JSON(403, dto.MessageResponse{Message: "Invalid input"})
 	}
 	token, err := s.userService.Login(request.MobileNumber)
@@ -134,18 +136,22 @@ func (s *Server) login(ctx echo.Context) error {
 }
 
 func (s *Server) checkOtps(ctx context.Context) {
-	ticker := time.NewTicker(time.Second * 30)
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			fmt.Println("main context cancelled")
+			return
 		case <-ticker.C:
+			s.mu.Lock()
 			for key, val := range s.registerOtps {
 				if time.Since(val.CreatedAt) > 3*time.Minute {
 					delete(s.registerOtps, key)
 				}
 			}
+			s.mu.Unlock()
 		}
 	}
 }
